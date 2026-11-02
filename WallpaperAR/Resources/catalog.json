@@ -1,0 +1,15 @@
+[
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "Tapiz Referencia (53 cm)",
+    "textureFile": "tapiz_referencia.jpg",
+    "patternWidthM": 0.53,
+    "patternHeightM": 0.53,
+    "textureWidthPx": 560,
+    "textureHeightPx": 560,
+    "rollLengthM": 10.0,
+    "rollWidthM": 0.53,
+    "tileable": true,
+    "notes": "Imagen de referencia del proyecto. 560×560 px ≈ 10.6 px/cm. Verificar costuras con test 3×3."
+  }
+]

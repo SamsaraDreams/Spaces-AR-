@@ -1,0 +1,75 @@
+# XcodeGen – genera WallpaperAR.xcodeproj sin necesidad de Xcode local
+# Uso: xcodegen generate (en CI macOS runner)
+# Documentación: https://github.com/yonaskolb/XcodeGen
+
+name: WallpaperAR
+options:
+  bundleIdPrefix: com.samsaradreams
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "15.4"
+  generateEmptyDirectories: true
+  defaultConfig: Debug
+
+configs:
+  Debug: debug
+  Release: release
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    ENABLE_BITCODE: NO
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    TARGETED_DEVICE_FAMILY: "1"          # 1 = iPhone
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""                  # completar con Team ID al firmar
+
+targets:
+
+  # ── App principal ─────────────────────────────────────────────────────
+  WallpaperAR:
+    type: application
+    platform: iOS
+    sources:
+      - path: WallpaperAR/App
+      - path: WallpaperAR/Domain
+      - path: WallpaperAR/Features
+      - path: WallpaperAR/Services
+      - path: WallpaperAR/Resources
+    resources:
+      - WallpaperAR/Resources
+    info:
+      path: WallpaperAR/App/Info.plist
+      properties:
+        CFBundleDisplayName: "WallpaperAR"
+        UILaunchStoryboardName: ""
+        NSCameraUsageDescription: "Necesitamos la cámara para visualizar el papel tapiz en tus paredes."
+        NSPhotoLibraryUsageDescription: "Para guardar las visualizaciones de papel tapiz."
+        UIRequiredDeviceCapabilities:
+          - armv7
+          - arkit
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+    settings:
+      base:
+        INFOPLIST_FILE: WallpaperAR/App/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.samsaradreams.wallpaperar
+        CODE_SIGN_STYLE: Automatic
+    dependencies:
+      - sdk: ARKit.framework
+      - sdk: RealityKit.framework
+      - sdk: SceneKit.framework
+
+  # ── Tests del dominio (sin ARKit, corren en CI) ───────────────────────
+  WallpaperARTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - WallpaperAR/Tests
+      - WallpaperAR/Domain
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.samsaradreams.wallpaperar.tests
+        TEST_HOST: ""
+        BUNDLE_LOADER: ""
