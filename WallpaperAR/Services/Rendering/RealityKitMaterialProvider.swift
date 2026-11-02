@@ -1,15 +1,16 @@
 // RealityKitMaterialProvider.swift
-// Implementación de WallpaperMaterialProviding usando RealityKit.
-// Carga la textura desde el bundle de la app, aplica UV tiling con
-// PhysicallyBasedMaterial y devuelve el material listo para asignar
-// a una ModelEntity de RealityKit.
+// Implementación de WallpaperMaterialProviding para RealityKit / iOS 17.
+//
+// NOTA DE TILING UV:
+// RealityKit iOS 17 no expone TextureCoordinateTransform directamente.
+// La estrategia es generar el mesh del plano con coordenadas UV escaladas
+// (ver ARViewContainer) y usar una textura sin transformación en el material.
+// Esta clase sólo construye el PhysicallyBasedMaterial con la textura cargada.
 
 import RealityKit
 import UIKit
 
-/// Implementación concreta de `WallpaperMaterialProviding` para RealityKit.
-/// Construye un `PhysicallyBasedMaterial` con la textura del papel tapiz
-/// repetida según el tiling UV calculado por `UVScaleCalculator`.
+/// Implementación concreta de `WallpaperMaterialProviding` para RealityKit iOS 17+.
 final class RealityKitMaterialProvider: WallpaperMaterialProviding {
 
     // MARK: - WallpaperMaterialProviding
@@ -18,51 +19,37 @@ final class RealityKitMaterialProvider: WallpaperMaterialProviding {
         UIImage(named: request.wallpaper.textureFile) != nil
     }
 
-    /// Construye y devuelve el material PBR listo para usar.
-    /// Retorna `nil` si la textura no existe en el bundle.
+    /// Construye el PhysicallyBasedMaterial con la textura cargada desde el bundle.
+    /// El tiling UV se logra escalando las UV del mesh en ARViewContainer.
+    /// Retorna nil si la textura no existe en el bundle.
     func material(for request: WallpaperMaterialRequest) -> RealityKit.Material? {
-        guard let uiImage = UIImage(named: request.wallpaper.textureFile) else {
+        guard let uiImage = UIImage(named: request.wallpaper.textureFile),
+              let cgImage = uiImage.cgImage else {
             print("[RealityKitMaterialProvider] Textura no encontrada: \(request.wallpaper.textureFile)")
             return nil
         }
 
-        // Construir la textura con el tiling UV calculado
-        let tiling = request.tiling
-        var material = PhysicallyBasedMaterial()
+        do {
+            // TextureResource.generate(from:options:) disponible desde iOS 15
+            let textureResource = try TextureResource.generate(
+                from: cgImage,
+                options: .init(semantic: .color)
+            )
 
-        // Crear TextureResource desde UIImage
-        guard let cgImage = uiImage.cgImage,
-              let textureResource = try? TextureResource(
-                  image: cgImage,
-                  withName: request.wallpaper.textureFile,
-                  options: .init(semantic: .color)
-              ) else {
-            print("[RealityKitMaterialProvider] No se pudo crear TextureResource.")
+            var material = PhysicallyBasedMaterial()
+
+            // Textura base (el tiling se aplica vía UV del mesh, no aquí)
+            let texture = MaterialParameters.Texture(textureResource)
+            material.baseColor = .init(texture: texture)
+
+            // Papel tapiz: mate, no metálico
+            material.roughness  = .init(floatLiteral: 0.85)
+            material.metallic   = .init(floatLiteral: 0.0)
+
+            return material
+        } catch {
+            print("[RealityKitMaterialProvider] Error generando TextureResource: \(error)")
             return nil
         }
-
-        // Aplicar la textura con transform de UV para el tiling
-        var baseColor = PhysicallyBasedMaterial.BaseColor()
-        let tilingTransform = TextureCoordinateTransform(
-            scale: SIMD2<Float>(Float(tiling.tilesX), Float(tiling.tilesY)),
-            rotation: 0
-        )
-        baseColor.texture = .init(
-            textureResource,
-            sampler: MaterialParameters.Texture.Sampler(
-                wrap: (.repeat, .repeat),
-                mipFilter: .linear,
-                magFilter: .linear,
-                minFilter: .linear
-            ),
-            transform: tilingTransform
-        )
-        material.baseColor = baseColor
-
-        // Superficie mate — papel tapiz no es metálico ni brillante
-        material.roughness = .init(floatLiteral: 0.85)
-        material.metallic  = .init(floatLiteral: 0.0)
-
-        return material
     }
 }
