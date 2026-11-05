@@ -1,12 +1,10 @@
 // VisualizerViewModel.swift
-// Lógica del visualizador AR.
-// Conecta el servicio de detección (WallDetecting) con la vista,
-// calcula métricas UV y rollos, y expone el estado al UI via @Published.
+// Estado observable del visualizador AR.
+// La sesión AR la maneja ARViewContainer directamente.
+// Este ViewModel solo recibe callbacks de superficie y calcula métricas.
 
-import Combine
 import Foundation
 
-/// Estado observable del visualizador AR.
 @MainActor
 final class VisualizerViewModel: ObservableObject {
 
@@ -24,46 +22,19 @@ final class VisualizerViewModel: ObservableObject {
     /// Papel tapiz actualmente seleccionado
     @Published var selectedWallpaper: Wallpaper
 
-    /// true mientras ARKit está buscando planos
-    @Published private(set) var isScanning = false
-
     // MARK: - Init
 
-    init(wallpaper: Wallpaper, wallDetector: WallDetecting) {
+    init(wallpaper: Wallpaper) {
         self.selectedWallpaper = wallpaper
-        self.wallDetector = wallDetector
-        bindDetector()
     }
 
-    // MARK: - Ciclo de vida
+    // MARK: - Interfaz pública
 
-    func startAR() {
-        isScanning = true
-        wallDetector.start()
-    }
-
-    func stopAR() {
-        isScanning = false
-        wallDetector.stop()
-    }
-
-    // MARK: - Private
-
-    private let wallDetector: WallDetecting
-
-    private func bindDetector() {
-        wallDetector.onSurfaceUpdate = { [weak self] surface in
-            guard let self else { return }
-            Task { @MainActor in
-                self.detectedSurface = surface
-                self.recalculate(surface: surface)
-            }
-        }
-    }
-
-    private func recalculate(surface: WallSurface) {
+    /// Llamado por ARViewContainer cuando detecta o actualiza una pared.
+    func updateSurface(_ surface: WallSurface) {
+        detectedSurface = surface
         let t = UVScaleCalculator.tiling(
-            wallWidthM: surface.widthM,
+            wallWidthM:  surface.widthM,
             wallHeightM: surface.heightM,
             patternSpec: selectedWallpaper.patternSpec
         )

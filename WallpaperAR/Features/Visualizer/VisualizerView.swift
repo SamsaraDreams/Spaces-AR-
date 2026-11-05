@@ -1,8 +1,7 @@
 // VisualizerView.swift
 // Vista principal del visualizador AR.
-// Muestra el ARView a pantalla completa con un overlay de métricas
-// (dimensiones de pared, repeticiones UV, rollos necesarios).
-// Aviso de "sin oclusión automática" visible mientras no hay LiDAR.
+// ARViewContainer maneja la sesión AR completa.
+// VisualizerViewModel recibe callbacks de superficie para las métricas.
 
 import SwiftUI
 
@@ -12,12 +11,8 @@ struct VisualizerView: View {
     private let materialProvider = RealityKitMaterialProvider()
 
     init(wallpaper: Wallpaper) {
-        let detector = ARWallDetector()
         _viewModel = StateObject(
-            wrappedValue: VisualizerViewModel(
-                wallpaper: wallpaper,
-                wallDetector: detector
-            )
+            wrappedValue: VisualizerViewModel(wallpaper: wallpaper)
         )
     }
 
@@ -26,7 +21,10 @@ struct VisualizerView: View {
             // Cámara AR a pantalla completa
             ARViewContainer(
                 wallpaper: viewModel.selectedWallpaper,
-                materialProvider: materialProvider
+                materialProvider: materialProvider,
+                onSurfaceUpdate: { surface in
+                    viewModel.updateSurface(surface)
+                }
             )
             .ignoresSafeArea()
 
@@ -43,8 +41,6 @@ struct VisualizerView: View {
                     .padding(.bottom, 32)
             }
         }
-        .onAppear  { viewModel.startAR() }
-        .onDisappear { viewModel.stopAR() }
         .navigationTitle("Visualizador AR")
         .navigationBarTitleDisplayMode(.inline)
     }

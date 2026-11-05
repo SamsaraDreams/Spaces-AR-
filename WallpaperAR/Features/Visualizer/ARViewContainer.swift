@@ -1,7 +1,14 @@
 // ARViewContainer.swift
 // Puente UIViewRepresentable entre SwiftUI y el ARView de RealityKit.
-// El tiling UV se logra generando un MeshResource con coordenadas UV
-// escaladas según tilesX/tilesY — compatible con iOS 17.
+//
+// ARQUITECTURA:
+// El Coordinator es el único dueño de la ARSession. Inicia la sesión AR,
+// actúa como ARSessionDelegate, detecta planos verticales y coloca entidades.
+// No depende de ARWallDetector — así el ARView y la sesión son el mismo objeto.
+//
+// TILING UV:
+// RealityKit iOS 17 no expone TextureCoordinateTransform.
+// Se generan UVs escaladas en el MeshDescriptor (makeScaledUVPlane).
 
 import ARKit
 import RealityKit
@@ -11,6 +18,8 @@ struct ARViewContainer: UIViewRepresentable {
 
     let wallpaper: Wallpaper
     let materialProvider: RealityKitMaterialProvider
+    /// Callback para notificar al ViewModel de superficies detectadas.
+    var onSurfaceUpdate: ((WallSurface) -> Void)?
 
     // MARK: - UIViewRepresentable
 
@@ -22,16 +31,19 @@ struct ARViewContainer: UIViewRepresentable {
         arView.debugOptions = [.showFeaturePoints]
         #endif
 
-        context.coordinator.arView = arView
+        context.coordinator.setup(arView: arView)
         return arView
     }
 
     func updateUIView(_ arView: ARView, context: Context) {
+        context.coordinator.onSurfaceUpdate = onSurfaceUpdate
         context.coordinator.updateWallpaper(wallpaper, provider: materialProvider)
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(wallpaper: wallpaper, materialProvider: materialProvider)
+        Coordinator(wallpaper: wallpaper,
+                    materialProvider: materialProvider,
+                    onSurfaceUpdate: onSurfaceUpdate)
     }
 
     // MARK: - Coordinator
@@ -42,13 +54,42 @@ struct ARViewContainer: UIViewRepresentable {
         private var currentWallpaper: Wallpaper
         private var materialProvider: RealityKitMaterialProvider
         private var planeEntities: [UUID: ModelEntity] = [:]
+        var onSurfaceUpdate: ((WallSurface) -> Void)?
 
-        init(wallpaper: Wallpaper, materialProvider: RealityKitMaterialProvider) {
+        init(wallpaper: Wallpaper,
+             materialProvider: RealityKitMaterialProvider,
+             onSurfaceUpdate: ((WallSurface) -> Void)?) {
             self.currentWallpaper = wallpaper
             self.materialProvider = materialProvider
+            self.onSurfaceUpdate = onSurfaceUpdate
         }
 
-        func updateWallpaper(_ wallpaper: Wallpaper, provider: RealityKitMaterialProvider) {
+        /// Configura el ARView y arranca la sesión AR.
+        func setup(arView: ARView) {
+            self.arView = arView
+            arView.session.delegate = self
+            startSession(in: arView)
+        }
+
+        func startSession(in arView: ARView) {
+            guard ARWorldTrackingConfiguration.isSupported else {
+                print("[ARViewContainer] ARWorldTracking no soportado.")
+                return
+            }
+            let config = ARWorldTrackingConfiguration()
+            config.planeDetection = .vertical
+            config.environmentTexturing = .none
+            arView.session.run(config,
+                               options: [.resetTracking, .removeExistingAnchors])
+            print("[ARViewContainer] Sesión AR iniciada.")
+        }
+
+        func stopSession() {
+            arView?.session.pause()
+        }
+
+        func updateWallpaper(_ wallpaper: Wallpaper,
+                             provider: RealityKitMaterialProvider) {
             guard wallpaper != currentWallpaper else { return }
             currentWallpaper = wallpaper
             materialProvider = provider
@@ -72,6 +113,19 @@ struct ARViewContainer: UIViewRepresentable {
             }
         }
 
+        func session(_ session: ARSession, didFailWithError error: Error) {
+            print("[ARViewContainer] Error de sesión: \(error.localizedDescription)")
+        }
+
+        func sessionWasInterrupted(_ session: ARSession) {
+            print("[ARViewContainer] Sesión interrumpida.")
+        }
+
+        func sessionInterruptionEnded(_ session: ARSession) {
+            guard let arView else { return }
+            startSession(in: arView)
+        }
+
         // MARK: - Private
 
         private func addOrUpdate(_ anchors: [ARAnchor]) {
@@ -83,26 +137,24 @@ struct ARViewContainer: UIViewRepresentable {
 
                 let w = planeAnchor.planeExtent.width
                 let h = planeAnchor.planeExtent.height
+                guard w > 0.1, h > 0.1 else { continue }
+
+                // Notificar al ViewModel
+                let surface = WallSurface(orientation: .vertical,
+                                          widthM: Double(w),
+                                          heightM: Double(h))
+                DispatchQueue.main.async { [weak self] in
+                    self?.onSurfaceUpdate?(surface)
+                }
 
                 // Calcular tiling UV
-                let surface = WallSurface(
-                    orientation: .vertical,
-                    widthM: Double(w),
-                    heightM: Double(h)
-                )
-                let request = WallpaperMaterialRequest(
-                    wallpaper: currentWallpaper,
-                    surface: surface
-                )
+                let request = WallpaperMaterialRequest(wallpaper: currentWallpaper,
+                                                       surface: surface)
                 let tiling = request.tiling
 
-                // Mesh con UV escaladas para el tiling
-                let mesh = makeScaledUVPlane(
-                    width: w,
-                    height: h,
-                    tilesX: Float(tiling.tilesX),
-                    tilesY: Float(tiling.tilesY)
-                )
+                let mesh = makeScaledUVPlane(width: w, height: h,
+                                             tilesX: Float(tiling.tilesX),
+                                             tilesY: Float(tiling.tilesY))
 
                 if let existing = planeEntities[anchor.identifier] {
                     existing.model?.mesh = mesh
@@ -125,22 +177,15 @@ struct ARViewContainer: UIViewRepresentable {
 
         private func reapplyAllMaterials() {
             guard let arView else { return }
-            for anchor in arView.session.currentFrame?.anchors ?? [] {
-                addOrUpdate([anchor])
-            }
+            let anchors = arView.session.currentFrame?.anchors ?? []
+            addOrUpdate(Array(anchors))
         }
 
         /// Genera un MeshResource de plano con UV escaladas para repetir la textura.
-        /// RealityKit no expone TextureCoordinateTransform en iOS 17, así que
+        /// RealityKit iOS 17 no expone TextureCoordinateTransform, así que
         /// escalamos las coordenadas UV directamente en el mesh.
-        private func makeScaledUVPlane(
-            width: Float,
-            height: Float,
-            tilesX: Float,
-            tilesY: Float
-        ) -> MeshResource {
-            // Vértices del plano (2 triángulos)
-            // Posiciones en espacio local del anchor
+        private func makeScaledUVPlane(width: Float, height: Float,
+                                       tilesX: Float, tilesY: Float) -> MeshResource {
             let hw = width  / 2
             let hh = height / 2
 
@@ -154,15 +199,14 @@ struct ARViewContainer: UIViewRepresentable {
                 SIMD3<Float>( hw,  hh, 0),
             ])
 
-            // UV escaladas según tiling
+            // UV escaladas según tiling (iOS 17: sin TextureCoordinateTransform)
             descr.textureCoordinates = MeshBuffer([
-                SIMD2<Float>(0,       0      ),
-                SIMD2<Float>(tilesX,  0      ),
-                SIMD2<Float>(0,       tilesY ),
-                SIMD2<Float>(tilesX,  tilesY ),
+                SIMD2<Float>(0,      0      ),
+                SIMD2<Float>(tilesX, 0      ),
+                SIMD2<Float>(0,      tilesY ),
+                SIMD2<Float>(tilesX, tilesY ),
             ])
 
-            // Normales apuntando hacia -Z (hacia la cámara cuando el plano es vertical)
             descr.normals = MeshBuffer([
                 SIMD3<Float>(0, 0, -1),
                 SIMD3<Float>(0, 0, -1),
@@ -170,14 +214,10 @@ struct ARViewContainer: UIViewRepresentable {
                 SIMD3<Float>(0, 0, -1),
             ])
 
-            // 2 triángulos formando el quad
-            descr.primitives = .triangles([
-                0, 1, 2,
-                1, 3, 2,
-            ])
+            descr.primitives = .triangles([0, 1, 2, 1, 3, 2])
 
-            return (try? MeshResource.generate(from: [descr])) ??
-                   .generatePlane(width: width, height: height)
+            return (try? MeshResource.generate(from: [descr]))
+                ?? .generatePlane(width: width, height: height)
         }
     }
 }
