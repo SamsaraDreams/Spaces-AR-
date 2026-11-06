@@ -30,10 +30,10 @@ public struct PatternSpec: Equatable, Sendable {
         textureWidthPx: Int? = nil,
         textureHeightPx: Int? = nil
     ) {
-        precondition(patternWidthM > 0, "patternWidthM debe ser > 0")
-        precondition(patternHeightM > 0, "patternHeightM debe ser > 0")
-        self.patternWidthM = patternWidthM
-        self.patternHeightM = patternHeightM
+        // Valores inválidos se normalizan a 0.53 m (ancho estándar del rollo)
+        // para evitar crashes por división entre cero en UVScaleCalculator.
+        self.patternWidthM  = patternWidthM  > 0 ? patternWidthM  : 0.53
+        self.patternHeightM = patternHeightM > 0 ? patternHeightM : 0.53
         self.textureWidthPx = textureWidthPx
         self.textureHeightPx = textureHeightPx
     }

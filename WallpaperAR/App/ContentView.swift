@@ -65,13 +65,23 @@ struct ContentView: View {
 
     private var wallpaperCard: some View {
         HStack(spacing: 16) {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color(.systemGray5))
-                .frame(width: 60, height: 60)
-                .overlay {
-                    Image(systemName: "photo")
-                        .foregroundStyle(.secondary)
+            // Miniatura de la textura real del tapiz
+            Group {
+                if let uiImg = UIImage(named: referenceWallpaper.textureFile) {
+                    Image(uiImage: uiImg)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Color(.systemGray5)
+                        .overlay {
+                            Image(systemName: "photo")
+                                .foregroundStyle(.secondary)
+                        }
                 }
+            }
+            .frame(width: 60, height: 60)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
             VStack(alignment: .leading, spacing: 4) {
                 Text(referenceWallpaper.name)
                     .font(.subheadline.bold())

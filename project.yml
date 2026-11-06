@@ -44,8 +44,12 @@ targets:
       properties:
         CFBundleDisplayName: "WallpaperAR"
         UILaunchStoryboardName: ""
+        # Permisos de privacidad — iOS exige descripción clara del uso
         NSCameraUsageDescription: "Necesitamos la cámara para visualizar el papel tapiz en tus paredes."
-        NSPhotoLibraryUsageDescription: "Para guardar las visualizaciones de papel tapiz."
+        NSPhotoLibraryAddUsageDescription: "Para guardar capturas de la visualización en tu galería."
+        # Declaración de cifrado — la app no usa criptografía propia
+        # Evita el cuestionario de exportación en App Store Connect
+        ITSAppUsesNonExemptEncryption: false
         UIRequiredDeviceCapabilities:
           - armv7
           - arkit

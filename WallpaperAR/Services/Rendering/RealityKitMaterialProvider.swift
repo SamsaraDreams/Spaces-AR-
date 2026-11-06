@@ -25,7 +25,9 @@ final class RealityKitMaterialProvider: WallpaperMaterialProviding {
     func material(for request: WallpaperMaterialRequest) -> RealityKit.Material? {
         guard let uiImage = UIImage(named: request.wallpaper.textureFile),
               let cgImage = uiImage.cgImage else {
+            #if DEBUG
             print("[RealityKitMaterialProvider] Textura no encontrada: \(request.wallpaper.textureFile)")
+            #endif
             return nil
         }
 
@@ -48,7 +50,9 @@ final class RealityKitMaterialProvider: WallpaperMaterialProviding {
 
             return material
         } catch {
+            #if DEBUG
             print("[RealityKitMaterialProvider] Error generando TextureResource: \(error)")
+            #endif
             return nil
         }
     }

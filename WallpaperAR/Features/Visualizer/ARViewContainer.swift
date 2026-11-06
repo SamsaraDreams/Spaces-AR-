@@ -46,6 +46,12 @@ struct ARViewContainer: UIViewRepresentable {
                     onSurfaceUpdate: onSurfaceUpdate)
     }
 
+    /// Detiene la sesión AR cuando SwiftUI desmonta la vista.
+    /// Sin esto la cámara sigue activa al volver a ContentView.
+    static func dismantleUIView(_ uiView: ARView, coordinator: Coordinator) {
+        coordinator.stopSession()
+    }
+
     // MARK: - Coordinator
 
     final class Coordinator: NSObject, ARSessionDelegate {
@@ -73,7 +79,9 @@ struct ARViewContainer: UIViewRepresentable {
 
         func startSession(in arView: ARView) {
             guard ARWorldTrackingConfiguration.isSupported else {
+                #if DEBUG
                 print("[ARViewContainer] ARWorldTracking no soportado.")
+                #endif
                 return
             }
             let config = ARWorldTrackingConfiguration()
@@ -81,7 +89,9 @@ struct ARViewContainer: UIViewRepresentable {
             config.environmentTexturing = .none
             arView.session.run(config,
                                options: [.resetTracking, .removeExistingAnchors])
+            #if DEBUG
             print("[ARViewContainer] Sesión AR iniciada.")
+            #endif
         }
 
         func stopSession() {
@@ -114,11 +124,15 @@ struct ARViewContainer: UIViewRepresentable {
         }
 
         func session(_ session: ARSession, didFailWithError error: Error) {
+            #if DEBUG
             print("[ARViewContainer] Error de sesión: \(error.localizedDescription)")
+            #endif
         }
 
         func sessionWasInterrupted(_ session: ARSession) {
+            #if DEBUG
             print("[ARViewContainer] Sesión interrumpida.")
+            #endif
         }
 
         func sessionInterruptionEnded(_ session: ARSession) {

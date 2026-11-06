@@ -57,8 +57,12 @@ public struct UVScaleCalculator {
         wallHeightM: Double,
         patternSpec: PatternSpec
     ) -> TilingResult {
-        precondition(wallWidthM > 0,  "wallWidthM debe ser > 0")
-        precondition(wallHeightM > 0, "wallHeightM debe ser > 0")
+        // Usar guard en vez de precondition: si ARKit entrega extent 0
+        // antes de que el filtro actúe, la app no debe crashear.
+        guard wallWidthM > 0, wallHeightM > 0,
+              patternSpec.patternWidthM > 0, patternSpec.patternHeightM > 0 else {
+            return TilingResult(tilesX: 1.0, tilesY: 1.0)
+        }
 
         let tilesX = wallWidthM  / patternSpec.patternWidthM
         let tilesY = wallHeightM / patternSpec.patternHeightM
