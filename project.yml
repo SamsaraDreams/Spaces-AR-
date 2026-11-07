@@ -23,7 +23,7 @@ settings:
     TARGETED_DEVICE_FAMILY: "1"          # 1 = iPhone
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
-    DEVELOPMENT_TEAM: ""                  # completar con Team ID al firmar
+    DEVELOPMENT_TEAM: "Tesseract Solutions"                  # completar con Team ID al firmar
 
 targets:
 
