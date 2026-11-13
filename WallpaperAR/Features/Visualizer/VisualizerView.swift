@@ -1,7 +1,8 @@
 // VisualizerView.swift
 // Vista principal del visualizador AR.
 // ARViewContainer maneja la sesión AR completa.
-// VisualizerViewModel recibe callbacks de superficie para las métricas.
+// VisualizerViewModel recibe callbacks de superficie/error para las
+// métricas y expone el catálogo para WallpaperSelectorView.
 
 import SwiftUI
 
@@ -10,9 +11,13 @@ struct VisualizerView: View {
     @StateObject private var viewModel: VisualizerViewModel
     private let materialProvider = RealityKitMaterialProvider()
 
-    init(wallpaper: Wallpaper) {
+    /// - Parameters:
+    ///   - wallpaper: Tapiz inicialmente seleccionado.
+    ///   - catalog: Catálogo completo para el selector. Si está vacío,
+    ///     se usa `[wallpaper]` (comportamiento previo, un solo tapiz).
+    init(wallpaper: Wallpaper, catalog: [Wallpaper] = []) {
         _viewModel = StateObject(
-            wrappedValue: VisualizerViewModel(wallpaper: wallpaper)
+            wrappedValue: VisualizerViewModel(wallpaper: wallpaper, catalog: catalog)
         )
     }
 
@@ -24,12 +29,15 @@ struct VisualizerView: View {
                 materialProvider: materialProvider,
                 onSurfaceUpdate: { surface in
                     viewModel.updateSurface(surface)
+                },
+                onSessionError: { message in
+                    viewModel.reportSessionError(message)
                 }
             )
             .ignoresSafeArea()
 
-            // Overlay de métricas
-            VStack(spacing: 0) {
+            // Overlay de métricas + selector
+            VStack(spacing: 12) {
                 noLiDARBanner
                     .padding(.horizontal)
                     .padding(.top, 8)
@@ -38,7 +46,16 @@ struct VisualizerView: View {
 
                 metricsPanel
                     .padding(.horizontal)
-                    .padding(.bottom, 32)
+
+                WallpaperSelectorView(
+                    catalog: viewModel.catalog,
+                    selectedWallpaper: viewModel.selectedWallpaper,
+                    onSelect: { wallpaper in
+                        viewModel.selectWallpaper(wallpaper)
+                    }
+                )
+                .padding(.horizontal)
+                .padding(.bottom, 24)
             }
         }
         .navigationTitle("Visualizador AR")
@@ -57,10 +74,13 @@ struct VisualizerView: View {
             .background(.ultraThinMaterial, in: Capsule())
     }
 
-    /// Panel inferior con métricas de la pared detectada
+    /// Panel inferior: prioriza el error de sesión, luego las métricas de
+    /// la pared detectada, y por último el indicador de escaneo.
     @ViewBuilder
     private var metricsPanel: some View {
-        if let surface = viewModel.detectedSurface, let tiling = viewModel.tiling {
+        if let error = viewModel.sessionError {
+            errorBanner(error)
+        } else if let surface = viewModel.detectedSurface, let tiling = viewModel.tiling {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Pared detectada", systemImage: "checkmark.circle.fill")
                     .font(.subheadline.bold())
@@ -99,6 +119,24 @@ struct VisualizerView: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
 
+    /// Banner visible de error de sesión AR. Antes de este banner, un
+    /// permiso de cámara denegado o un dispositivo no compatible dejaba
+    /// la app aparentemente "sin interfaz": pantalla negra de la cámara
+    /// y el indicador de escaneo girando para siempre, sin ninguna pista
+    /// de qué estaba fallando.
+    private func errorBanner(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.yellow)
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(.white)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding()
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+
     private func metricRow(_ label: String, _ value: String) -> some View {
         GridRow {
             Text(label)
@@ -123,7 +161,7 @@ private extension Double {
             wallpaper: Wallpaper(
                 id: WallpaperID(),
                 name: "Tapiz Referencia",
-                textureFile: "tapiz_referencia",
+                textureFile: "tapiz_referencia.jpg",
                 patternSpec: PatternSpec(
                     patternWidthM: 0.53,
                     patternHeightM: 0.53,

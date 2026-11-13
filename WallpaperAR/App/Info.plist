@@ -5,7 +5,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>es</string>
     <key>CFBundleDisplayName</key>
-    <string>WallpaperAR</string>
+    <string>Space interiorismo AR</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleIdentifier</key>
@@ -24,8 +24,18 @@
     <true/>
     <key>NSCameraUsageDescription</key>
     <string>Necesitamos la cámara para visualizar el papel tapiz en tus paredes.</string>
-    <key>NSPhotoLibraryUsageDescription</key>
-    <string>Para guardar las visualizaciones de papel tapiz.</string>
+    <!--
+      NSPhotoLibraryUsageDescription (acceso de lectura/escritura completo a la
+      fototeca) se eliminó intencionalmente: la app nunca lee la fototeca del
+      usuario, solo podrá *agregar* capturas en una fase futura. Esa capacidad
+      ya está correctamente declarada en project.yml como
+      NSPhotoLibraryAddUsageDescription (permiso de solo-escritura, iOS 11+).
+      Mantener ambas claves solicitaría al usuario un permiso más amplio del
+      que la app realmente necesita (violación del principio de mínimo
+      privilegio) sin ningún beneficio funcional.
+    -->
+    <key>UILaunchScreen</key>
+    <dict/>
     <key>UIApplicationSceneManifest</key>
     <dict>
         <key>UIApplicationSupportsMultipleScenes</key>

@@ -23,7 +23,15 @@ settings:
     TARGETED_DEVICE_FAMILY: "1"          # 1 = iPhone
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
-    DEVELOPMENT_TEAM: "Tesseract Solutions"                  # completar con Team ID al firmar
+    # DEVELOPMENT_TEAM debe ser el Team ID de Apple Developer (10 caracteres
+    # alfanuméricos, ej. "A1B2C3D4E5"), NUNCA un nombre de empresa como
+    # "Tesseract Solutions" — ese valor no es un Team ID válido y Xcode no
+    # puede resolver firma automática (CODE_SIGN_STYLE: Automatic) con él.
+    # El CI no firma (CODE_SIGNING_ALLOWED=NO más abajo), así que esto solo
+    # importa al compilar localmente en Xcode. Se deja sin valor hasta que
+    # exista una cuenta de Apple Developer inscrita; Xcode pedirá elegir
+    # el equipo de firma interactivamente la primera vez que se abra.
+    # DEVELOPMENT_TEAM: ""
 
 targets:
 
@@ -42,8 +50,15 @@ targets:
     info:
       path: WallpaperAR/App/Info.plist
       properties:
-        CFBundleDisplayName: "WallpaperAR"
-        UILaunchStoryboardName: ""
+        CFBundleDisplayName: "Space interiorismo AR"
+        # UILaunchScreen (dict vacío) es el idioma soportado por iOS 14+ para
+        # "sin storyboard de lanzamiento, pasar directo al contenido SwiftUI".
+        # UILaunchStoryboardName: "" (cadena vacía) NO es una configuración
+        # válida: en pruebas previas dejó la pantalla de lanzamiento sin
+        # transicionar nunca a ContentView (pantalla en blanco indefinida,
+        # percibida como "la app no tiene interfaz"). Se sustituye por
+        # UILaunchScreen para forzar la transición inmediata a SwiftUI.
+        UILaunchScreen: {}
         # Permisos de privacidad — iOS exige descripción clara del uso
         NSCameraUsageDescription: "Necesitamos la cámara para visualizar el papel tapiz en tus paredes."
         NSPhotoLibraryAddUsageDescription: "Para guardar capturas de la visualización en tu galería."
@@ -51,7 +66,9 @@ targets:
         # Evita el cuestionario de exportación en App Store Connect
         ITSAppUsesNonExemptEncryption: false
         UIRequiredDeviceCapabilities:
-          - armv7
+          # armv7 (32-bit) se retira: iOS 17 exige arm64, ningún dispositivo
+          # soportado por este deploymentTarget usa armv7. Declararlo solo
+          # restringe innecesariamente la disponibilidad en la App Store.
           - arkit
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

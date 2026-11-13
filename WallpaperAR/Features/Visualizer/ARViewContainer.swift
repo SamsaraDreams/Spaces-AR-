@@ -20,6 +20,13 @@ struct ARViewContainer: UIViewRepresentable {
     let materialProvider: RealityKitMaterialProvider
     /// Callback para notificar al ViewModel de superficies detectadas.
     var onSurfaceUpdate: ((WallSurface) -> Void)?
+    /// Callback para notificar fallos de la sesión AR (permiso de cámara
+    /// denegado, dispositivo no compatible, interrupción no recuperable).
+    /// Antes de este callback estos fallos solo se registraban con `print`
+    /// en builds DEBUG: en Release el usuario no tenía ninguna señal de
+    /// que algo había fallado, y la UI quedaba indefinidamente en estado
+    /// "buscando pared" sin explicación.
+    var onSessionError: ((String) -> Void)?
 
     // MARK: - UIViewRepresentable
 
@@ -37,13 +44,15 @@ struct ARViewContainer: UIViewRepresentable {
 
     func updateUIView(_ arView: ARView, context: Context) {
         context.coordinator.onSurfaceUpdate = onSurfaceUpdate
+        context.coordinator.onSessionError = onSessionError
         context.coordinator.updateWallpaper(wallpaper, provider: materialProvider)
     }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(wallpaper: wallpaper,
                     materialProvider: materialProvider,
-                    onSurfaceUpdate: onSurfaceUpdate)
+                    onSurfaceUpdate: onSurfaceUpdate,
+                    onSessionError: onSessionError)
     }
 
     /// Detiene la sesión AR cuando SwiftUI desmonta la vista.
@@ -61,13 +70,16 @@ struct ARViewContainer: UIViewRepresentable {
         private var materialProvider: RealityKitMaterialProvider
         private var planeEntities: [UUID: ModelEntity] = [:]
         var onSurfaceUpdate: ((WallSurface) -> Void)?
+        var onSessionError: ((String) -> Void)?
 
         init(wallpaper: Wallpaper,
              materialProvider: RealityKitMaterialProvider,
-             onSurfaceUpdate: ((WallSurface) -> Void)?) {
+             onSurfaceUpdate: ((WallSurface) -> Void)?,
+             onSessionError: ((String) -> Void)?) {
             self.currentWallpaper = wallpaper
             self.materialProvider = materialProvider
             self.onSurfaceUpdate = onSurfaceUpdate
+            self.onSessionError = onSessionError
         }
 
         /// Configura el ARView y arranca la sesión AR.
@@ -82,6 +94,10 @@ struct ARViewContainer: UIViewRepresentable {
                 #if DEBUG
                 print("[ARViewContainer] ARWorldTracking no soportado.")
                 #endif
+                let message = "Este dispositivo no es compatible con el seguimiento de mundo de ARKit."
+                DispatchQueue.main.async { [weak self] in
+                    self?.onSessionError?(message)
+                }
                 return
             }
             let config = ARWorldTrackingConfiguration()
@@ -127,6 +143,10 @@ struct ARViewContainer: UIViewRepresentable {
             #if DEBUG
             print("[ARViewContainer] Error de sesión: \(error.localizedDescription)")
             #endif
+            let message = "No se pudo iniciar la cámara AR: \(error.localizedDescription). Verifica el permiso de Cámara en Ajustes."
+            DispatchQueue.main.async { [weak self] in
+                self?.onSessionError?(message)
+            }
         }
 
         func sessionWasInterrupted(_ session: ARSession) {
